@@ -1,0 +1,72 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Ruff
+.ruff_cache/
+
+# Project specific - Source files and outputs
+*.pdf
+*.jpeg
+*.jpg
+*.png
+transcriptions/
+outputs/
+processed/
+
+# Archive directories (contains source PDFs)
+American Heritage Center/
+
+# API keys (just in case)
+.env
+*.key
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+batch_logs/
+
+# Temporary files and scripts
+test_batch_processor/
+check_batch.py
+config.yaml
+*_temp.py

@@ -1,0 +1,184 @@
+# Configuration for Historical Document Batch Processor
+# Copy this to config.yaml and customize as needed
+
+# Gemini API Settings
+api:
+  model: "gemini-1.5-pro"  # or "gemini-1.5-flash" for faster/cheaper
+  temperature: 0.1         # Lower = more deterministic, higher = more creative
+  max_output_tokens: 8192
+  check_interval: 60       # Seconds between batch status checks
+
+# Metadata Template
+# Customize fields based on your research needs
+metadata_fields:
+  required:
+    - title
+    - source_file
+    - processed_date
+  
+  optional:
+    - publication
+    - date
+    - author
+    - document_type
+    - item
+  
+  entities:
+    - people
+    - organizations
+    - locations
+    - themes
+  
+  tags:
+    - processed
+    - historical-document
+    # Add your custom tags:
+    # - sagebrush-rebellion
+    # - grazing-policy
+    # - public-lands
+
+# Entity Extraction Settings
+entities:
+  # Use wiki-link format for all entities
+  wiki_links: true
+  
+  # Include only explicitly mentioned entities
+  strict_mode: true
+  
+  # Custom entity types (optional)
+  # Uncomment and customize if you want additional categories
+  # custom_types:
+  #   - legislation
+  #   - court_cases
+  #   - agencies
+  #   - publications
+
+# Transcription Settings
+transcription:
+  # Preserve original spelling and grammar
+  preserve_original: true
+  
+  # How to handle unclear text
+  illegible_marker: "[illegible]"
+  
+  # How to handle uncertain transcriptions
+  uncertain_marker: "[?]"
+  
+  # Include page numbers if present
+  include_page_numbers: true
+
+# Output Settings
+output:
+  # Markdown formatting
+  include_frontmatter: true
+  include_entity_section: true
+  include_notes_section: true
+  
+  # File naming convention
+  # Options: "original" (keep PDF name), "title" (use document title), "date_title"
+  naming_convention: "original"
+  
+  # Obsidian compatibility
+  obsidian:
+    wiki_links: true
+    tags: true
+    # Set to true if you want dataview-compatible fields
+    dataview_compatible: true
+
+# Research Context (optional)
+# Add context about your research to improve entity recognition
+research_context:
+  # Project focus helps Gemini understand what's relevant
+  focus: |
+    Environmental history research on the Sagebrush Rebellion,
+    federal grazing policy, and public lands management on the Great Plains,
+    1930s-1980s.
+  
+  # Key entities Gemini should watch for
+  key_entities:
+    people:
+      - "Wayne Aspinall"
+      - "Stewart Udall"
+      - "James Watt"
+    
+    organizations:
+      - "Bureau of Land Management"
+      - "U.S. Forest Service"
+      - "American National Cattlemen's Association"
+    
+    locations:
+      - "Great Plains"
+      - "Bureau of Land Management Districts"
+    
+    themes:
+      - "grazing fees"
+      - "federal land management"
+      - "public domain"
+      - "range rights"
+      - "environmental regulation"
+
+# Prompt Customization (advanced)
+# Override default prompts if needed
+prompts:
+  # System instruction emphasizing accuracy
+  # Leave empty to use default
+  system_instruction: ""
+  
+  # Additional instructions for specific document types
+  document_types:
+    congressional_hearing:
+      extra_instructions: |
+        Pay special attention to:
+        - Witness names and affiliations
+        - Committee members
+        - Legislation discussed (bill numbers)
+        - Specific policy positions
+    
+    newspaper_article:
+      extra_instructions: |
+        Pay special attention to:
+        - Byline (author)
+        - Publication and date
+        - Quoted sources
+        - Key events described
+    
+    agency_report:
+      extra_instructions: |
+        Pay special attention to:
+        - Issuing agency
+        - Report title and number
+        - Statistics and data points
+        - Policy recommendations
+
+# Processing Options
+processing:
+  # Skip files that already have output
+  skip_existing: true
+  
+  # Maximum files per batch
+  # (split large collections into multiple batches)
+  max_files_per_batch: 100
+  
+  # Retry failed documents
+  retry_failures: true
+  max_retries: 2
+  
+  # Save batch metadata
+  save_batch_log: true
+  log_directory: "./batch_logs"
+
+# Validation Settings
+validation:
+  # Check for common issues
+  check_empty_transcriptions: true
+  check_missing_entities: false  # Set to true to warn if no entities found
+  check_date_format: true
+  
+  # Minimum transcription length (characters)
+  min_transcription_length: 50
+  
+  # Maximum entity count (to catch over-extraction)
+  max_people: 50
+  max_organizations: 30
+  max_locations: 30
+  max_themes: 20

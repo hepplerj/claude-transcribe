@@ -1,0 +1,47 @@
+[project]
+name = "historical-pdf-batch-processor"
+version = "1.0.0"
+description = "Batch process historical PDFs using Claude API with Obsidian-friendly output"
+readme = "README_CLAUDE.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [
+    { name = "Your Name", email = "your.email@example.com" }
+]
+keywords = ["claude", "pdf", "transcription", "obsidian", "batch-processing", "historical-documents"]
+
+dependencies = [
+    "anthropic>=0.40.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/historical-pdf-processor"
+Documentation = "https://github.com/yourusername/historical-pdf-processor#readme"
+
+[project.scripts]
+batch-process = "batch_pdf_processor_claude:main"
+test-setup = "test_setup_claude:main"
+test-single = "test_single_claude:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E501"]  # Line too long (handled by formatter)
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
