@@ -80,12 +80,14 @@ def process_single_document(pdf_path: Path, api_key: str, model: str = "claude-s
 
 1. Extract metadata and create a brief overview of the document
 2. Transcribe the document EXACTLY as written, preserving spelling, punctuation, and formatting
-3. Extract entities (people, organizations, locations, themes) that are EXPLICITLY mentioned
+3. Extract entities (people, organizations, locations, themes) that are EXPLICITLY mentioned IN THE LETTER CONTENT
 4. Never invent, infer, or hallucinate information not present in the source
 5. For multi-page documents, insert HTML comments to mark page breaks
 
 CRITICAL RULES:
-- Only include entities you can directly cite from the document
+- Only include entities you can directly cite from the document BODY/CONTENT
+- Do NOT extract people from letterhead, headers, footers, or organizational listings (board members, officers, etc.)
+- Only extract people who are mentioned in the actual letter text or who are the author/recipient
 - If uncertain about an entity, DO NOT include it
 - Preserve original spellings and phrasings
 - Mark unclear text as [illegible] rather than guessing
@@ -93,6 +95,11 @@ CRITICAL RULES:
 - Do not add interpretive commentary beyond the brief overview
 - For page breaks, insert: <!-- page 1 -->, <!-- page 2 -->, etc.
 - The overview should be 2-3 sentences summarizing the document's content
+
+LETTERHEAD HANDLING:
+- Skip boilerplate letterhead content (addresses, phone numbers, officer lists, staff lists)
+- Preserve dates, document titles, and sender/recipient information
+- Do NOT transcribe organizational rosters, board member lists, or staff directories from letterhead
 
 Output format must be valid YAML that can be parsed programmatically."""
 
@@ -111,7 +118,7 @@ publication: "Publication name if present, otherwise empty string"
 source: "{source}"
 date: "Date in YYYY-MM-DD format if present, otherwise empty string"
 people:
-  - "[[Person Name]]"  # Use wiki-link format, only if explicitly mentioned
+  - "[[Person Name]]"  # ONLY people mentioned in the letter body or author/recipient - NOT from letterhead lists
 organization:
   - "[[Organization Name]]"  # Use wiki-link format, only if explicitly mentioned
 locations:
@@ -123,13 +130,24 @@ overview: "Brief 2-3 sentence summary of the document's content and significance
 
 Then provide the transcription in markdown format.
 
+CRITICAL - PEOPLE EXTRACTION:
+- ONLY extract people who are mentioned in the actual letter text/content
+- DO NOT extract people from letterhead, headers, staff lists, officer lists, or board member rosters
+- Include the author/sender and recipient if identifiable
+- Ignore organizational directories and contact lists in letterhead
+
+LETTERHEAD TRANSCRIPTION:
+- Skip boilerplate letterhead (addresses, phone numbers, staff lists, officer rosters)
+- Keep: Date, sender organization, recipient information
+- Start main transcription after letterhead section
+
 IMPORTANT FOR MULTI-PAGE DOCUMENTS:
 - Insert <!-- page 1 --> at the start of the first page
 - Insert <!-- page 2 --> at the start of the second page, etc.
 - Place the comment on its own line before the page content
 
 Remember:
-- Only include entities EXPLICITLY present in the document
+- Only include entities EXPLICITLY present in the document BODY
 - Use [[wiki-link]] format for all entities
 - Preserve original text exactly
 - Mark unclear sections as [illegible]
