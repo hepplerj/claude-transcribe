@@ -45,6 +45,33 @@ process-opus:  ## Process with Opus (most accurate)
 	fi
 	@python batch_pdf_processor_claude.py --input $(IN) --output $(OUT) --model claude-opus-4-5-20251101
 
+install-local:  ## Install local model dependencies (PyMuPDF + openai)
+	@uv pip install -e ".[local]"
+
+list-models:  ## List models available in LlamaBarn
+	@python process_local_llamabarn.py --list-models
+
+process-local:  ## Process with local LlamaBarn model (usage: make process-local MODEL=Qwen3-VL-2B IN=./pdfs OUT=./transcriptions)
+	@if [ -z "$(MODEL)" ] || [ -z "$(IN)" ] || [ -z "$(OUT)" ]; then \
+		echo "Usage: make process-local MODEL=Qwen3-VL-2B IN=./pdfs OUT=./transcriptions"; \
+		exit 1; \
+	fi
+	@python process_local_llamabarn.py --input $(IN) --output $(OUT) --model $(MODEL)
+
+consolidate:  ## Consolidate themes (usage: make consolidate DIR=./transcriptions)
+	@if [ -z "$(DIR)" ]; then \
+		echo "Usage: make consolidate DIR=./transcriptions"; \
+		exit 1; \
+	fi
+	@python consolidate_themes.py --input $(DIR) --report theme_analysis.md
+
+consolidate-apply:  ## Consolidate and apply themes to files
+	@if [ -z "$(DIR)" ]; then \
+		echo "Usage: make consolidate-apply DIR=./transcriptions"; \
+		exit 1; \
+	fi
+	@python consolidate_themes.py --input $(DIR) --report theme_analysis.md --apply
+
 clean:  ## Remove virtual environment and cache files
 	@echo "Cleaning up..."
 	@rm -rf .venv

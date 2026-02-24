@@ -2,7 +2,7 @@
 name = "historical-pdf-batch-processor"
 version = "1.0.0"
 description = "Batch process historical PDFs using Claude API with Obsidian-friendly output"
-readme = "README_CLAUDE.md"
+readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "MIT" }
 authors = [
@@ -20,6 +20,10 @@ dev = [
     "pytest>=7.0",
     "ruff>=0.1.0",
 ]
+local = [
+    "openai>=1.0.0",
+    "PyMuPDF>=1.24.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/yourusername/historical-pdf-processor"
@@ -29,6 +33,7 @@ Documentation = "https://github.com/yourusername/historical-pdf-processor#readme
 batch-process = "batch_pdf_processor_claude:main"
 test-setup = "test_setup_claude:main"
 test-single = "test_single_claude:main"
+process-local = "process_local_llamabarn:main"
 
 [build-system]
 requires = ["hatchling"]
