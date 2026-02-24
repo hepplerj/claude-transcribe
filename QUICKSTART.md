@@ -2,8 +2,6 @@
 
 Get up and running with the Historical Document Batch Processor in 5 minutes.
 
-**Privacy First** • **50% Cost Savings** • **No Training on Your Data**
-
 ## Prerequisites
 
 - Python 3.8 or higher
@@ -183,6 +181,70 @@ Each PDF will have a corresponding `.md` file with:
 3. Browse your processed documents
 4. Use wiki-links to explore connections
 
+**Obsidian Templates:**
+
+The `templates/` directory contains two note templates for the core Templates plugin:
+- `archival_template.md` — general archival documents
+- `correspondence_template.md` — letters (uses `author`/`recipient` instead of `creator`/`publication`)
+
+Copy `templates/` into your vault and point the Templates plugin to it for consistent manual note creation.
+
+## Step 7: Consolidate Themes
+
+When documents are processed independently, Claude assigns themes without awareness of other documents in the batch. The result is inconsistency:
+
+```
+Document 1:   "federal grazing policy"
+Document 50:  "grazing regulations"
+Document 100: "public lands grazing"
+```
+
+The `consolidate_themes.py` script fixes this by collecting all themes across your corpus, asking Claude to identify variants of the same concept, and standardizing on a canonical term.
+
+### Analyze first (no file changes)
+
+```bash
+make consolidate DIR=./transcriptions
+# or
+python consolidate_themes.py --input ./transcriptions --report theme_analysis.md
+```
+
+Review `theme_analysis.md` to verify the proposed consolidations before applying anything.
+
+### Apply consolidation
+
+```bash
+make consolidate-apply DIR=./transcriptions
+# or
+python consolidate_themes.py --input ./transcriptions --report theme_analysis.md --apply
+```
+
+When `--apply` is used:
+- Each file's `themes` field is updated to canonical forms
+- Original themes are preserved under `original_themes` for reference
+- A `themes_consolidated: true` flag is added to frontmatter
+- `.bak` backup files are created before any writes (restore with `for f in transcriptions/*.md.bak; do mv "$f" "${f%.bak}"; done`)
+
+### When to consolidate
+
+- After a full batch completes — not mid-batch
+- After processing multiple related batches you want to analyze together
+- Before serious analysis work or sharing with collaborators
+
+### Options
+
+```
+-i, --input DIR      Directory with processed markdown files (required)
+--report FILE        Output report file (default: theme_consolidation_report.md)
+--apply              Apply consolidated themes to files
+--backup/--no-backup Create .bak files before updating (default: yes)
+--model MODEL        Claude model to use
+```
+
+> For iterative refinement, multi-stage projects, and advanced usage, see [THEME_CONSOLIDATION.md](THEME_CONSOLIDATION.md).
+
+---
+
 ## Model Selection Guide
 
 Choose the right model for your documents:
@@ -253,7 +315,7 @@ my-research/
 └── notes/
 ```
 
-Process by category:
+Process by category, then consolidate themes across the whole corpus:
 
 ```bash
 # Congressional hearings
@@ -261,10 +323,13 @@ python batch_pdf_processor_claude.py \
   --input sources/congressional-hearings \
   --output transcriptions/congressional-hearings
 
-# Newspapers  
+# Newspapers
 python batch_pdf_processor_claude.py \
   --input sources/newspapers \
   --output transcriptions/newspapers
+
+# Consolidate themes across everything
+python consolidate_themes.py --input transcriptions --report theme_taxonomy.md --apply
 ```
 
 ### Zettelkasten Integration
@@ -339,6 +404,18 @@ Claude only includes entities explicitly mentioned in the document. If you need 
 - Maximum: 24 hours
 - You can check status in Claude Console with batch ID
 
+### Issue: Consolidation merged themes that should be separate
+
+Restore from backup files and adjust manually:
+```bash
+for f in transcriptions/*.md.bak; do mv "$f" "${f%.bak}"; done
+```
+Then re-run consolidation. Claude errs conservative by design — if it merged two themes, they were likely very similar. You can manually split them in the markdown files after.
+
+### Issue: Consolidation didn't merge themes that clearly refer to the same thing
+
+This is expected conservative behavior. Manually update the canonical theme in the relevant markdown files, then re-run consolidation to pick up the change.
+
 ## Cost Management
 
 ### Free Credits
@@ -358,12 +435,13 @@ Set monthly budget limits in Console to avoid surprises.
 2. Only use Opus when necessary
 3. Batch process (automatic 50% savings)
 4. Remove duplicate files before processing
+5. Theme consolidation is a single API call regardless of corpus size (~$0.01–0.02 for hundreds of documents)
 
 ## Next Steps
 
 Once you're comfortable with the basic workflow:
 
-1. **Integrate with Obsidian** - Set up templates, queries, dataview
+1. **Integrate with Obsidian** - Copy `templates/` into your vault, set up Dataview queries
 2. **Customize prompts** - Add domain-specific instructions
 3. **Build research database** - Use outputs for literature review
 4. **Create connections** - Use wiki-links to build knowledge graph
