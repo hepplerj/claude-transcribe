@@ -48,7 +48,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Estimate Claude Batch API cost for a directory of PDFs (no API key required)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
+        epilog=f"""
 Examples:
   %(prog)s --input ./pdfs
   %(prog)s --input ./archive --tokens-per-page 2000
@@ -56,9 +56,9 @@ Examples:
 
 Token estimation:
   With PyMuPDF installed, page counts are read from each PDF.
-  Without PyMuPDF, --assume-pages is used (default: %(default_pages)s pages/doc).
+  Without PyMuPDF, --assume-pages is used (default: {DEFAULT_ASSUME_PAGES} pages/doc).
   Actual costs depend on document complexity and scan quality.
-        """ % {"default_pages": DEFAULT_ASSUME_PAGES},
+        """,
     )
     parser.add_argument("-i", "--input", type=Path, required=True,
                         help="Directory containing PDF files (searched recursively)")
