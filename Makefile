@@ -1,5 +1,7 @@
 # Makefile for Historical PDF Batch Processor
 
+PYTHON := .venv/bin/python
+
 .PHONY: help install setup test test-single clean process
 
 help:  ## Show this help message
@@ -15,62 +17,86 @@ setup:  ## Complete setup (venv + deps + tests)
 	@bash setup.sh
 
 test:  ## Run setup tests
-	@python test_setup_claude.py
+	@$(PYTHON) test_setup_claude.py
 
 test-single:  ## Test single PDF (usage: make test-single PDF=path/to/file.pdf)
 	@if [ -z "$(PDF)" ]; then \
 		echo "Usage: make test-single PDF=path/to/file.pdf"; \
 		exit 1; \
 	fi
-	@python test_single_claude.py $(PDF)
+	@$(PYTHON) test_single_claude.py $(PDF)
 
 process:  ## Process PDFs (usage: make process IN=./pdfs OUT=./transcriptions)
 	@if [ -z "$(IN)" ] || [ -z "$(OUT)" ]; then \
 		echo "Usage: make process IN=./pdfs OUT=./transcriptions"; \
 		exit 1; \
 	fi
-	@python batch_pdf_processor_claude.py --input $(IN) --output $(OUT)
+	@$(PYTHON) batch_pdf_processor_claude.py --input $(IN) --output $(OUT)
 
 process-haiku:  ## Process with Haiku (fastest/cheapest)
 	@if [ -z "$(IN)" ] || [ -z "$(OUT)" ]; then \
 		echo "Usage: make process-haiku IN=./pdfs OUT=./transcriptions"; \
 		exit 1; \
 	fi
-	@python batch_pdf_processor_claude.py --input $(IN) --output $(OUT) --model claude-haiku-4-5-20251001
+	@$(PYTHON) batch_pdf_processor_claude.py --input $(IN) --output $(OUT) --model claude-haiku-4-5-20251001
 
 process-opus:  ## Process with Opus (most accurate)
 	@if [ -z "$(IN)" ] || [ -z "$(OUT)" ]; then \
 		echo "Usage: make process-opus IN=./pdfs OUT=./transcriptions"; \
 		exit 1; \
 	fi
-	@python batch_pdf_processor_claude.py --input $(IN) --output $(OUT) --model claude-opus-4-5-20251101
+	@$(PYTHON) batch_pdf_processor_claude.py --input $(IN) --output $(OUT) --model claude-opus-4-5-20251101
+
+install-gemini:  ## Install Gemini API dependencies
+	@uv pip install "google-genai>=1.0.0" pyyaml
+
+test-gemini:  ## Test single PDF with Gemini (usage: make test-gemini PDF=path/to/file.pdf)
+	@if [ -z "$(PDF)" ]; then \
+		echo "Usage: make test-gemini PDF=path/to/file.pdf"; \
+		exit 1; \
+	fi
+	@$(PYTHON) test_single_gemini.py $(PDF)
+
+process-gemini:  ## Process PDFs with Gemini Flash free tier (usage: make process-gemini IN=./pdfs OUT=./transcriptions)
+	@if [ -z "$(IN)" ] || [ -z "$(OUT)" ]; then \
+		echo "Usage: make process-gemini IN=./pdfs OUT=./transcriptions"; \
+		exit 1; \
+	fi
+	@$(PYTHON) batch_pdf_processor_gemini.py --input $(IN) --output $(OUT)
+
+process-gemini-pro:  ## Process PDFs with Gemini 1.5 Pro (most accurate)
+	@if [ -z "$(IN)" ] || [ -z "$(OUT)" ]; then \
+		echo "Usage: make process-gemini-pro IN=./pdfs OUT=./transcriptions"; \
+		exit 1; \
+	fi
+	@$(PYTHON) batch_pdf_processor_gemini.py --input $(IN) --output $(OUT) --model gemini-1.5-pro --delay 0
 
 install-local:  ## Install local model dependencies (PyMuPDF + openai)
 	@uv pip install -e ".[local]"
 
 list-models:  ## List models available in LlamaBarn
-	@python process_local_llamabarn.py --list-models
+	@$(PYTHON) process_local_llamabarn.py --list-models
 
 process-local:  ## Process with local LlamaBarn model (usage: make process-local MODEL=Qwen3-VL-2B IN=./pdfs OUT=./transcriptions)
 	@if [ -z "$(MODEL)" ] || [ -z "$(IN)" ] || [ -z "$(OUT)" ]; then \
 		echo "Usage: make process-local MODEL=Qwen3-VL-2B IN=./pdfs OUT=./transcriptions"; \
 		exit 1; \
 	fi
-	@python process_local_llamabarn.py --input $(IN) --output $(OUT) --model $(MODEL)
+	@$(PYTHON) process_local_llamabarn.py --input $(IN) --output $(OUT) --model $(MODEL)
 
 consolidate:  ## Consolidate themes (usage: make consolidate DIR=./transcriptions)
 	@if [ -z "$(DIR)" ]; then \
 		echo "Usage: make consolidate DIR=./transcriptions"; \
 		exit 1; \
 	fi
-	@python consolidate_themes.py --input $(DIR) --report theme_analysis.md
+	@$(PYTHON) consolidate_themes.py --input $(DIR) --report theme_analysis.md
 
 consolidate-apply:  ## Consolidate and apply themes to files
 	@if [ -z "$(DIR)" ]; then \
 		echo "Usage: make consolidate-apply DIR=./transcriptions"; \
 		exit 1; \
 	fi
-	@python consolidate_themes.py --input $(DIR) --report theme_analysis.md --apply
+	@$(PYTHON) consolidate_themes.py --input $(DIR) --report theme_analysis.md --apply
 
 clean:  ## Remove virtual environment and cache files
 	@echo "Cleaning up..."
