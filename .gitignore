@@ -47,8 +47,15 @@ htmlcov/
 *.jpg
 *.png
 transcriptions/
+transcriptions_*/
 outputs/
 processed/
+
+# Comparison reports and output artifacts
+comparison_report.md
+
+# Claude Code session data
+.claude/
 
 # Archive directories (contains source PDFs)
 American Heritage Center/
