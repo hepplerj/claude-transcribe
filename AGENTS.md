@@ -76,6 +76,7 @@ claude-transcribe/
 ├── compare_transcriptions.py      # A/B comparison across two output directories
 ├── consolidate_themes.py          # Theme normalization post-processor
 ├── batch_pdf_processor_local.py     # Local model processor (LlamaBarn/OpenAI-compatible)
+├── estimate_batch_cost.py         # Pre-run cost estimator (no API key needed; uses page counts if PyMuPDF available)
 ├── check_batch_cost.py            # Post-run cost/token/timing report for a completed batch ID
 ├── pyproject.toml                 # Dependencies, ruff config, entry points
 ├── Makefile                       # Convenience commands
@@ -161,6 +162,9 @@ make test-single PDF=./sample.pdf
 make install-local                                          # install PyMuPDF + openai
 make list-models                                           # see what's loaded
 make process-local MODEL=Qwen3-VL-2B IN=./pdfs OUT=./transcriptions
+
+# Estimate cost before running (no API key needed)
+make estimate IN=./pdfs
 
 # Check cost/token/timing for a completed batch
 make cost-check BATCH=msgbatch_xxx
