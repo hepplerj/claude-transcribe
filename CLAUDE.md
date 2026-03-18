@@ -69,7 +69,7 @@ Each `.md` file has handcrafted YAML frontmatter (not `yaml.dump` — wiki-link 
 
 **Model names are hardcoded** in `argparse choices` in both `batch_pdf_processor_claude.py` and `test_single_claude.py`. Update both when model versions change. Current choices:
 - `claude-haiku-4-5-20251001`
-- `claude-sonnet-4-5-20250929` (default)
-- `claude-opus-4-5-20251101`
+- `claude-sonnet-4-6` (default)
+- `claude-opus-4-6`
 
 **`temperature=0.1`** is intentional for transcription accuracy. Do not raise it.

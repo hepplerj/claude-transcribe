@@ -227,8 +227,8 @@ uv run ruff format .
 
 ### Model Names
 Current valid model choices (hardcoded in `argparse` `choices`):
-- `claude-opus-4-5-20251101`
-- `claude-sonnet-4-5-20250929` (default)
+- `claude-opus-4-6`
+- `claude-sonnet-4-6` (default)
 - `claude-haiku-4-5-20251001`
 
 Update `choices` lists in both `batch_pdf_processor_claude.py` and `test_single_claude.py` when model versions change.
