@@ -6,7 +6,7 @@ PYTHON := .venv/bin/python
         process process-haiku process-opus \
         install-gemini test-gemini process-gemini process-gemini-pro \
         install-local list-models process-local \
-        consolidate consolidate-apply
+        cost-check consolidate consolidate-apply
 
 help:  ## Show this help message
 	@echo "Historical PDF Batch Processor - Make Commands"
@@ -87,6 +87,13 @@ process-local:  ## Process with local LlamaBarn model (usage: make process-local
 		exit 1; \
 	fi
 	@$(PYTHON) batch_pdf_processor_local.py --input $(IN) --output $(OUT) --model $(MODEL)
+
+cost-check:  ## Check cost and token usage for a completed batch (usage: make cost-check BATCH=msgbatch_xxx)
+	@if [ -z "$(BATCH)" ]; then \
+		echo "Usage: make cost-check BATCH=msgbatch_xxx"; \
+		exit 1; \
+	fi
+	@$(PYTHON) check_batch_cost.py $(BATCH)
 
 consolidate:  ## Consolidate themes (usage: make consolidate DIR=./transcriptions)
 	@if [ -z "$(DIR)" ]; then \

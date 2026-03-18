@@ -97,7 +97,7 @@ def check_batch_cost(batch_id: str):
         print(f'Per doc:   ${total_cost/succeeded:.4f}')
     print()
     
-    print('Model: claude-sonnet-4-5-20250929')
+    print('Model: claude-sonnet-4-6')
     print('Pricing: $1.50/MTok input, $7.50/MTok output (batch discount applied)')
     print('=' * 60)
 
