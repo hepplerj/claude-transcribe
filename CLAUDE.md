@@ -34,22 +34,25 @@ uv run ruff format .
 
 ## Architecture
 
-Three independent scripts; no shared module or library layer between them.
+Independent scripts; no shared module or library layer between them.
 
 | Script | API mode | Purpose |
 |--------|----------|---------|
-| `batch_pdf_processor_claude.py` | Batch API | Main processor — submits all PDFs as one job, polls until complete, writes output |
-| `test_single_claude.py` | Standard API | Test one PDF interactively; prints raw response, metadata, token cost |
-| `consolidate_themes.py` | Standard API | Post-process: normalize inconsistent themes across all output `.md` files |
+| `batch_pdf_processor_claude.py` | Anthropic Batch API | Main processor — submits all PDFs as one job, polls until complete, writes output |
+| `test_single_claude.py` | Anthropic standard API | Test one PDF interactively; prints raw response, metadata, token cost |
+| `batch_pdf_processor_gemini.py` | Gemini API | Sequential processor with free-tier rate limiting |
+| `test_single_gemini.py` | Gemini API | Test one PDF interactively with Gemini |
+| `compare_transcriptions.py` | — | A/B comparison tool across two output directories |
+| `consolidate_themes.py` | Anthropic standard API | Post-process: normalize inconsistent themes across all output `.md` files |
 
 ### Data flow (batch processor)
 
 ```
 PDFs → base64 encode → Anthropic Batch API → poll until "ended"
-    → parse YAML fence + trailing markdown → write .md files
+    → parse --- frontmatter + ## Transcription section → write .md files
 ```
 
-Claude's response for each document is expected to be a fenced `\`\`\`yaml` block (metadata) followed by plain markdown (transcription). `parse_claude_response()` splits on these fence markers.
+Claude's response for each document is expected to be a `---`-delimited YAML frontmatter block followed by a `## Transcription` header and plain markdown. `parse_claude_response()` splits on `---` delimiters, then extracts the transcription after the `## Transcription` marker.
 
 ### Output format
 

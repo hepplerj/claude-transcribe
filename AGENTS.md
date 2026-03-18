@@ -19,13 +19,16 @@
 
 ## Project Overview
 
-A command-line tool for academic researchers to batch-transcribe historical PDFs using the Claude API. PDFs are encoded as base64, submitted to Claude's Batch API in bulk (50% cost savings vs. standard API), and the structured responses are parsed into Obsidian-compatible markdown files with YAML frontmatter and `[[wiki-link]]` entity references.
+A command-line tool for academic researchers to batch-transcribe historical PDFs using the Claude or Gemini APIs. PDFs are encoded as base64, submitted in bulk, and the structured responses are parsed into Obsidian-compatible markdown files with YAML frontmatter and `[[wiki-link]]` entity references.
 
-Four entry points:
+Entry points:
 - `batch_pdf_processor_claude.py` — main batch processor (Anthropic Batch API, 50% discount)
 - `test_single_claude.py` — single-document tester (non-batch, for prompt validation)
+- `batch_pdf_processor_gemini.py` — Gemini batch processor (sequential, free-tier rate limiting)
+- `test_single_gemini.py` — single-document tester for Gemini
+- `compare_transcriptions.py` — A/B comparison tool across two output directories
 - `consolidate_themes.py` — post-processing theme normalization across a processed corpus
-- `process_local_llamabarn.py` — local model processor via LlamaBarn (no API key, sequential)
+- `batch_pdf_processor_local.py` — local model processor via LlamaBarn (no API key, sequential)
 
 ---
 
@@ -34,7 +37,8 @@ Four entry points:
 - **Runtime:** Python 3.8+
 - **Package manager:** `uv` (recommended) or `pip`
 - **Core dependencies:** `anthropic>=0.40.0`, `pyyaml>=6.0`
-- **Local model dependencies** (`pip install -e ".[local]"`): `openai>=1.0.0`, `PyMuPDF>=1.24.0`
+- **Gemini dependencies** (`uv pip install -e ".[gemini]"`): `google-genai>=1.0.0`
+- **Local model dependencies** (`uv pip install -e ".[local]"`): `openai>=1.0.0`, `PyMuPDF>=1.24.0`
 - **Dev dependencies:** `pytest>=7.0`, `ruff>=0.1.0`
 - **Build backend:** `hatchling`
 - **Linter/formatter:** `ruff` (line length 100, target py38, rules E/F/I/N/W)
@@ -65,20 +69,21 @@ export ANTHROPIC_API_KEY='your-api-key-here'
 
 ```
 claude-transcribe/
-├── batch_pdf_processor_claude.py  # Main batch processing script (Anthropic API)
+├── batch_pdf_processor_claude.py  # Main batch processor (Anthropic Batch API)
 ├── test_single_claude.py          # Single document tester (Anthropic API)
-├── process_local_llamabarn.py     # Local model processor (LlamaBarn/OpenAI-compatible)
+├── batch_pdf_processor_gemini.py  # Batch processor (Gemini API, sequential)
+├── test_single_gemini.py          # Single document tester (Gemini API)
+├── compare_transcriptions.py      # A/B comparison across two output directories
 ├── consolidate_themes.py          # Theme normalization post-processor
+├── batch_pdf_processor_local.py     # Local model processor (LlamaBarn/OpenAI-compatible)
 ├── check_batch_cost.py            # Cost estimation utility
-├── check_batch.py                 # Retrieve results for a batch by ID
 ├── pyproject.toml                 # Dependencies, ruff config, entry points
 ├── Makefile                       # Convenience commands
 ├── setup.sh                       # Full environment setup script
 ├── templates/                     # Obsidian note templates
 │   ├── archival_template.md       # General archival docs (creator, publication fields)
 │   └── correspondence_template.md # Letters (author, recipient fields)
-├── transcriptions/                # Default output directory (git-ignored)
-└── American Heritage Center/      # Example input PDF directory structure
+└── American Heritage Center/      # Example input PDF directory structure (git-ignored)
 ```
 
 ---
@@ -114,7 +119,7 @@ ThemeConsolidator (optional post-processing)
 1. **PDF → base64** via `encode_pdf()`
 2. **Path → source citation** via `parse_source_from_path()` — expects `Archive/Collection/Box/Folder/file.pdf` hierarchy; builds `"Folder, Box, Collection, Archive"` string
 3. **Batch submission** — `client.messages.batches.create(requests=[...])`
-4. **Response parsing** — Claude returns a fenced `\`\`\`yaml` block followed by plain markdown transcription; `parse_claude_response()` splits on the fence markers
+4. **Response parsing** — Claude returns a `---` YAML frontmatter block followed by a `## Transcription` header and plain markdown; `parse_claude_response()` splits on `---` delimiters then extracts transcription after the header marker
 5. **Output writing** — `create_obsidian_document()` builds YAML frontmatter manually (not via `yaml.dump`) to control field ordering and wiki-link formatting
 
 ### Key Data Flow (local/LlamaBarn)
@@ -122,7 +127,7 @@ ThemeConsolidator (optional post-processing)
 1. **PDF → PNG images** via PyMuPDF (`fitz`): each page rendered at configurable DPI, base64-encoded
 2. **Path → source citation** — same `parse_source_from_path()` logic
 3. **API call** — `openai.OpenAI(base_url="http://localhost:2276/v1", api_key="not-needed")`, images sent as `image_url` content parts in the user message
-4. **Response parsing** — same YAML fence parsing as the batch processor
+4. **Response parsing** — same `---` frontmatter + `## Transcription` parsing as the Claude batch processor
 5. **Output writing** — same `create_obsidian_document()` logic
 
 ### API Usage
@@ -175,10 +180,14 @@ make clean
 python batch_pdf_processor_claude.py \
   --input ./pdfs \
   --output ./transcriptions \
-  --model claude-sonnet-4-5-20250929 \
+  --model claude-sonnet-4-6 \
   --check-interval 60
 
-python test_single_claude.py path/to/document.pdf
+python test_single_claude.py path/to/document.pdf --doc-type letter
+
+python batch_pdf_processor_gemini.py --input ./pdfs --output ./transcriptions
+
+python compare_transcriptions.py ./transcriptions_claude ./transcriptions_gemini
 
 python consolidate_themes.py \
   --input ./transcriptions \
@@ -200,8 +209,8 @@ uv run ruff format .
 ### Output Format
 - YAML frontmatter is built **manually** via string concatenation (not `yaml.dump`) to preserve field ordering and avoid quoting issues with `[[wiki-link]]` values
 - All entity values use Obsidian wiki-link format: `[[Name]]`
-- Hardcoded output tags: `to-do`, `source/primary`
-- The `added` field uses `"%B %d, %Y"` strftime format (e.g., "February 05, 2025")
+- Output tags: `to-do` and `source/primary/{doc_type}` (e.g. `source/primary/letter`)
+- The `added` field uses ISO format `%Y-%m-%d` (e.g., "2025-02-05")
 
 ### Prompting
 - System prompt and user prompt are defined as module-level strings in `HistoricalDocumentProcessor.__init__` and `create_analysis_prompt()`
@@ -240,5 +249,5 @@ Update `choices` lists in both `batch_pdf_processor_claude.py` and `test_single_
 
 ---
 
-*Last Updated: 2026-02-24*
+*Last Updated: 2026-03-17*
 *This document is maintained for AI agent context and onboarding.*

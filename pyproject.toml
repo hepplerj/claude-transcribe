@@ -37,7 +37,7 @@ Documentation = "https://github.com/yourusername/historical-pdf-processor#readme
 batch-process = "batch_pdf_processor_claude:main"
 test-setup = "test_setup_claude:main"
 test-single = "test_single_claude:main"
-process-local = "process_local_llamabarn:main"
+process-local = "batch_pdf_processor_local:main"
 
 [build-system]
 requires = ["hatchling"]

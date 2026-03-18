@@ -18,7 +18,7 @@
 
 ## Overview
 
-This tool batch-processes historical PDFs using the Claude API to produce Obsidian-compatible markdown transcriptions with structured metadata. It solves the problem of manually transcribing archival documents at scale — a common bottleneck in academic historical research — by submitting documents in bulk to Claude's Batch API (50% cost savings) and writing output files ready for direct use in an Obsidian vault. The primary audience is academic historians and archivists who maintain large collections of primary source PDFs and want searchable, linked transcriptions with consistent entity metadata.
+This tool batch-processes historical PDFs using the Claude or Gemini APIs to produce Obsidian-compatible markdown transcriptions with structured metadata. It solves the problem of manually transcribing archival documents at scale — a common bottleneck in academic historical research — by submitting documents in bulk and writing output files ready for direct use in an Obsidian vault. Claude's Batch API provides 50% cost savings; Gemini offers a free tier. The primary audience is academic historians and archivists who maintain large collections of primary source PDFs and want searchable, linked transcriptions with consistent entity metadata.
 
 ---
 
@@ -47,10 +47,10 @@ This tool batch-processes historical PDFs using the Claude API to produce Obsidi
 
 ### Output Metadata Fields
 Required YAML frontmatter fields in every output file:
-- `title`, `creator`, `publication`, `source`, `date`
+- `title`, `creator`, `publication`, `source`, `date`, `doc_type`
 - `people`, `organization`, `locations`, `themes` (all as `[[wiki-link]]` format lists)
-- `tags` (hardcoded: `to-do`, `source/primary`)
-- `added` (today's date, formatted as "Month DD, YYYY")
+- `tags`: `to-do` and `source/primary/{doc_type}` (e.g. `source/primary/letter`)
+- `added` (today's date in ISO format: `YYYY-MM-DD`)
 
 ### Obsidian Templates
 The `templates/` directory provides two Obsidian note templates for manual note creation:
@@ -62,7 +62,11 @@ These are reference templates for Obsidian's Templates plugin, not used by the s
 ### Transcription Fidelity
 - Preserve original spelling, punctuation, and grammar — no modernization or correction
 - For multi-page documents, insert HTML page-break comments: `<!-- page 1 -->`, `<!-- page 2 -->`, etc.
-- Skip boilerplate letterhead content (addresses, phone numbers, staff rosters); preserve dates, sender/recipient info, and document titles
+- Apply document-type-specific boilerplate rules:
+  - **Letters**: skip letterhead (addresses, phone numbers, officer/staff lists); preserve date, sender org, recipient
+  - **Newspaper articles**: skip mastheads, column headers, page numbers, ad copy; preserve dateline, headline, byline, body
+  - **Reports/memoranda**: skip cover page boilerplate; preserve title, date, authoring office, body
+- When skipping non-content sections, note the omission inline: `[letterhead omitted]`, `[masthead omitted]`, etc.
 
 ### Model Parameters
 - Requests use `temperature: 0.1` for factual accuracy
@@ -200,5 +204,5 @@ These are reference templates for Obsidian's Templates plugin, not used by the s
 
 ---
 
-*Last Updated: 2026-02-24*
+*Last Updated: 2026-03-17*
 *This document is maintained for AI agent context and onboarding.*

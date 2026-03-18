@@ -2,7 +2,11 @@
 
 PYTHON := .venv/bin/python
 
-.PHONY: help install setup test test-single clean process
+.PHONY: help install setup test test-single clean \
+        process process-haiku process-opus \
+        install-gemini test-gemini process-gemini process-gemini-pro \
+        install-local list-models process-local \
+        consolidate consolidate-apply
 
 help:  ## Show this help message
 	@echo "Historical PDF Batch Processor - Make Commands"
@@ -45,10 +49,10 @@ process-opus:  ## Process with Opus (most accurate)
 		echo "Usage: make process-opus IN=./pdfs OUT=./transcriptions"; \
 		exit 1; \
 	fi
-	@$(PYTHON) batch_pdf_processor_claude.py --input $(IN) --output $(OUT) --model claude-opus-4-5-20251101
+	@$(PYTHON) batch_pdf_processor_claude.py --input $(IN) --output $(OUT) --model claude-opus-4-6
 
 install-gemini:  ## Install Gemini API dependencies
-	@uv pip install "google-genai>=1.0.0" pyyaml
+	@uv pip install -e ".[gemini]"
 
 test-gemini:  ## Test single PDF with Gemini (usage: make test-gemini PDF=path/to/file.pdf)
 	@if [ -z "$(PDF)" ]; then \
@@ -75,14 +79,14 @@ install-local:  ## Install local model dependencies (PyMuPDF + openai)
 	@uv pip install -e ".[local]"
 
 list-models:  ## List models available in LlamaBarn
-	@$(PYTHON) process_local_llamabarn.py --list-models
+	@$(PYTHON) batch_pdf_processor_local.py --list-models
 
 process-local:  ## Process with local LlamaBarn model (usage: make process-local MODEL=Qwen3-VL-2B IN=./pdfs OUT=./transcriptions)
 	@if [ -z "$(MODEL)" ] || [ -z "$(IN)" ] || [ -z "$(OUT)" ]; then \
 		echo "Usage: make process-local MODEL=Qwen3-VL-2B IN=./pdfs OUT=./transcriptions"; \
 		exit 1; \
 	fi
-	@$(PYTHON) process_local_llamabarn.py --input $(IN) --output $(OUT) --model $(MODEL)
+	@$(PYTHON) batch_pdf_processor_local.py --input $(IN) --output $(OUT) --model $(MODEL)
 
 consolidate:  ## Consolidate themes (usage: make consolidate DIR=./transcriptions)
 	@if [ -z "$(DIR)" ]; then \
