@@ -18,7 +18,14 @@
 
 ## Overview
 
-This tool batch-processes historical PDFs using the Claude or Gemini APIs to produce Obsidian-compatible markdown transcriptions with structured metadata. It solves the problem of manually transcribing archival documents at scale — a common bottleneck in academic historical research — by submitting documents in bulk and writing output files ready for direct use in an Obsidian vault. Claude's Batch API provides 50% cost savings; Gemini offers a free tier. The primary audience is academic historians and archivists who maintain large collections of primary source PDFs and want searchable, linked transcriptions with consistent entity metadata.
+This tool batch-processes historical PDFs using the Claude or Gemini APIs to produce Obsidian-compatible markdown transcriptions with structured metadata. It solves the problem of manually transcribing archival documents at scale — a common bottleneck in academic historical research — by submitting documents in bulk and writing output files ready for direct use in an Obsidian vault.
+
+Three processing pipelines are available:
+- **Image-based (Claude Batch API):** PDFs sent directly as base64; Claude transcribes from vision. 50% cost savings via batch API.
+- **Vision OCR (macOS only):** PDFs rasterized locally, OCR'd via Apple Vision framework, text sent to Claude for correction and entity extraction. Significantly cheaper input costs for typed documents.
+- **Gemini:** Sequential processing with free-tier rate limiting available.
+
+The primary audience is academic historians and archivists who maintain large collections of primary source PDFs and want searchable, linked transcriptions with consistent entity metadata.
 
 ---
 
@@ -34,7 +41,7 @@ This tool batch-processes historical PDFs using the Claude or Gemini APIs to pro
 ## Business Rules
 
 ### Source Path Parsing
-- The batch processor expects PDFs organized in a five-level directory hierarchy: `Archive / Collection / Box / Folder / file.pdf`
+- All processors expect PDFs organized in a five-level directory hierarchy: `Archive / Collection / Box / Folder / file.pdf`
 - The source citation in each output file is derived from this hierarchy in reverse order: `"Folder, Box, Collection, Archive"`
 - If fewer than 5 path parts are present, the script falls back to the parent directory path
 
@@ -45,12 +52,27 @@ This tool batch-processes historical PDFs using the Claude or Gemini APIs to pro
 - Mark unclear text as `[illegible]` rather than guessing
 - If uncertain about an entity, omit it
 
+### OCR Correction (Vision Pipeline)
+- Fix only demonstrable OCR character substitutions — do not silently alter historical content
+- When correction is certain (clear substitution + context confirms it): correct silently
+- When reconstruction relies on inference: mark as `[reconstructed: ...]`
+- When text is truly unrecoverable: mark as `[illegible]`
+- Paratext (stamps, fax headers, marginal annotations): note their presence but exclude from transcription body; annotate inline (e.g. `[marginal notation present: "2:00pm"]`)
+
+### OCR Confidence Threshold
+- The Vision OCR pipeline reports a per-document average confidence score (0.0–1.0) across all text observations on all pages
+- Documents below `--confidence-threshold` (default 0.5) are flagged in a summary report at run end
+- Flagged documents are still processed normally — the threshold only triggers a log entry, not skipping
+- Flagged documents may benefit from reprocessing with the image-based pipeline (using a vision model rather than OCR text)
+
 ### Output Metadata Fields
 Required YAML frontmatter fields in every output file:
 - `title`, `creator`, `publication`, `source`, `date`, `doc_type`
 - `people`, `organization`, `locations`, `themes` (all as `[[wiki-link]]` format lists)
 - `tags`: `to-do` and `source/primary/{doc_type}` (e.g. `source/primary/letter`)
 - `added` (today's date in ISO format: `YYYY-MM-DD`)
+
+When `--skip-claude` is used in the Vision pipeline, only `source` is populated from the path; all other fields are left blank.
 
 ### Obsidian Templates
 The `templates/` directory provides two Obsidian note templates for manual note creation:
@@ -83,9 +105,9 @@ These are reference templates for Obsidian's Templates plugin, not used by the s
 
 ## Features
 
-### Feature: Batch PDF Processing
+### Feature: Batch PDF Processing (Image-Based)
 
-**Description:** Submit a directory of PDFs to Claude's Batch API in a single job. Polls for completion and writes one Obsidian markdown file per PDF.
+**Description:** Submit a directory of PDFs to Claude's Batch API in a single job. PDFs are encoded as base64 and sent to Claude's vision model. Polls for completion and writes one Obsidian markdown file per PDF.
 
 **Functionality:**
 - Recursively finds all `.pdf` files in the input directory
@@ -103,13 +125,42 @@ These are reference templates for Obsidian's Templates plugin, not used by the s
 
 ---
 
-### Feature: Single Document Testing
+### Feature: Vision OCR Pipeline (macOS only)
 
-**Description:** Process one PDF using the standard (non-batch) API for quick testing of prompts and output format before committing to a large batch.
+**Description:** Rasterize PDFs locally via PyMuPDF, extract text using Apple's Vision framework OCR, then send only the text to Claude for correction and entity extraction. Substantially cheaper than the image-based pipeline for typed documents because input tokens are text rather than images.
 
 **Functionality:**
+- Rasterizes each PDF page to a PNG image at configurable DPI (default 200; use 300 for degraded docs)
+- Runs `VNRecognizeTextRequest` (accurate level, language correction enabled) on each page image
+- Reports per-page and per-document average OCR confidence scores
+- Documents below `--confidence-threshold` are flagged in a summary at run end
+- Sends OCR text to Claude Batch API as plain text content (not base64 image)
+- Displays estimated cost based on actual OCR character count
+- Writes same Obsidian markdown output format as the image-based pipeline
+
+**`--skip-claude` mode:**
+- Skips the Claude API call entirely (no API key required)
+- Writes raw OCR text directly into the Transcription section with minimal frontmatter
+- Useful for inspecting OCR quality before committing to a Claude batch, or when Vision confidence is high enough that correction isn't needed
+
+**`--ocr-out FILE` (test script only):**
+- Saves raw OCR text to a file for offline inspection before the Claude step
+
+**Edge Cases:**
+- Zero text extracted from a page: logged as a warning; document still submitted/written
+- Low confidence document: flagged and logged, processing continues normally
+- Non-macOS system: exits immediately with a clear error message
+
+---
+
+### Feature: Single Document Testing
+
+**Description:** Process one PDF using the standard (non-batch) API for quick testing of prompts and output format before committing to a large batch. Available for both the image-based and Vision OCR pipelines.
+
+**Functionality:**
+- Vision version displays raw OCR text and per-page confidence scores before the Claude step
 - Displays raw API response, parsed YAML metadata, entity counts, transcription preview (first 500 chars), and token usage/cost breakdown
-- Accepts same model and API key options as batch processor
+- Accepts same model, API key, and pipeline-specific options as the corresponding batch processor
 
 ---
 
@@ -128,39 +179,57 @@ These are reference templates for Obsidian's Templates plugin, not used by the s
 
 ## User Flows
 
-### Flow 1: Batch Processing a Document Set
+### Flow 1: Vision OCR Batch (Recommended for Typed Documents)
 
-**Goal:** Transcribe a folder of archival PDFs and import into Obsidian
+**Goal:** Transcribe typed archival PDFs cheaply using local OCR + Claude text correction
+
+**Steps:**
+1. User installs Vision dependencies: `make install-vision`
+2. User organizes PDFs in the expected hierarchy: `Archive/Collection/Box/Folder/*.pdf`
+3. User sets API key in `.env` or environment
+4. Optionally, user tests one document first: `make test-vision PDF=./sample.pdf`
+   - Raw OCR text and per-page confidence scores are displayed
+   - Claude's corrected output and cost estimate are shown
+5. User runs: `make process-vision IN=./pdfs OUT=./transcriptions`
+6. Script OCRs each PDF locally, logs confidence scores, submits text batch to Claude
+7. On completion, script retrieves results and writes one `.md` file per PDF
+8. Any flagged low-confidence documents are listed at the end for manual review
+9. User opens output directory in Obsidian; entities auto-link via `[[wiki-link]]` format
+
+**Confidence-based routing:**
+- High confidence docs (≥0.5): proceed through Vision OCR pipeline
+- Low confidence docs flagged in summary: consider reprocessing with `make process` (image-based)
+
+---
+
+### Flow 2: Image-Based Batch Processing
+
+**Goal:** Transcribe a folder of archival PDFs (any quality) using Claude's vision model
 
 **Steps:**
 1. User organizes PDFs in the expected hierarchy: `Archive/Collection/Box/Folder/*.pdf`
-2. User sets `ANTHROPIC_API_KEY` environment variable
-3. User runs: `make process IN=./pdfs OUT=./transcriptions` (or `python batch_pdf_processor_claude.py --input ... --output ...`)
+2. User sets `ANTHROPIC_API_KEY` in `.env` or environment
+3. User runs: `make process IN=./pdfs OUT=./transcriptions`
 4. Script encodes each PDF, displays estimated cost, and submits batch job
 5. Script polls status every 60 seconds, printing progress counts
 6. On completion, script retrieves results and writes one `.md` file per PDF
 7. User opens output directory in Obsidian; entities auto-link via `[[wiki-link]]` format
 
-**Error Paths:**
-- API key missing → exits before encoding with clear error
-- Input directory doesn't exist → exits with error
-- Individual document YAML parse failure → logged as warning, file still written with partial content
-- Individual document API error → logged, counted as failed, processing continues
-
 ---
 
-### Flow 2: Test a Single Document Before Batch
+### Flow 3: OCR-Only (No Claude)
 
-**Goal:** Verify prompt output quality and cost estimate on one document before a large batch
+**Goal:** Quickly dump OCR text to Obsidian notes without any API cost
 
 **Steps:**
-1. User runs: `make test-single PDF=./sample.pdf` (or `python test_single_claude.py sample.pdf`)
-2. Script displays raw response, parsed metadata, entity counts, transcription preview, and per-request cost
-3. If output looks correct, user proceeds with full batch
+1. User runs: `make process-vision IN=./pdfs OUT=./transcriptions` with `--skip-claude`
+   (or: `python batch_pdf_processor_vision.py --input ./pdfs --output ./out --skip-claude`)
+2. Script OCRs each PDF, writes minimal `.md` files with raw OCR as transcription
+3. User reviews output in Obsidian; selectively reprocesses poor-quality documents with Claude
 
 ---
 
-### Flow 3: Consolidate Themes Across a Corpus
+### Flow 4: Consolidate Themes Across a Corpus
 
 **Goal:** Standardize inconsistent theme tags produced by independent per-document processing
 
@@ -177,15 +246,16 @@ These are reference templates for Obsidian's Templates plugin, not used by the s
 
 ### Not Currently Implemented
 - GUI or web interface
-- OCR for scanned documents (Claude receives the PDF directly; degraded scans may be incomplete)
-- Image extraction from PDFs
+- Spatial column sorting for newspaper OCR (bounding box layout analysis) — groundwork laid with per-page rasterization, but column ordering not implemented
 - Duplicate document detection
 - CSV/JSON export of extracted metadata
 - Progress bar during batch polling
 - Multi-language support
 - Controlled vocabulary file for theme consolidation (manual taxonomy input)
+- Automatic fallback from Vision OCR to image-based pipeline for low-confidence documents
 
 ### Architectural Constraints
+- Vision OCR pipeline is macOS-only (Apple Vision framework dependency)
 - No multi-user support — single researcher, local CLI only
 - No database — all state is in the filesystem (markdown files)
 - Batch jobs may take up to 24 hours; the script blocks while polling
@@ -198,11 +268,17 @@ These are reference templates for Obsidian's Templates plugin, not used by the s
 - **Q:** Should the output section order (Overview, Images, Notes, Connections, Transcription) be configurable?
   - **Status:** Not currently configurable; hardcoded in `create_obsidian_document`
 
+- **Q:** Should low-confidence documents be automatically routed to the image-based pipeline within the same run?
+  - **Status:** Currently just logged; manual reprocessing required
+
 ### Technical
 - **Q:** How should very large PDFs (exceeding Claude's context window) be handled?
   - **Status:** Currently truncated; no chunking or splitting implemented
 
+- **Q:** Should newspaper column bounding boxes be spatially sorted for correct reading order?
+  - **Status:** Not implemented; Vision returns observations in approximate top-to-bottom order which may not respect column layout
+
 ---
 
-*Last Updated: 2026-03-17*
+*Last Updated: 2026-03-21*
 *This document is maintained for AI agent context and onboarding.*
