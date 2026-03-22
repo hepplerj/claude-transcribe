@@ -42,8 +42,8 @@ Independent scripts; no shared module or library layer between them.
 | `test_single_claude.py` | Anthropic standard API | Test one PDF interactively; prints raw response, metadata, token cost |
 | `batch_pdf_processor_gemini.py` | Gemini API | Sequential processor with free-tier rate limiting |
 | `test_single_gemini.py` | Gemini API | Test one PDF interactively with Gemini |
-| `compare_transcriptions.py` | — | A/B comparison tool across two output directories |
-| `consolidate_themes.py` | Anthropic standard API | Post-process: normalize inconsistent themes across all output `.md` files |
+| `utils/compare_transcriptions.py` | — | A/B comparison tool across two output directories |
+| `utils/consolidate_themes.py` | Anthropic standard API | Post-process: normalize inconsistent themes across all output `.md` files |
 
 ### Data flow (batch processor)
 

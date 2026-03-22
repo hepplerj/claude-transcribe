@@ -115,28 +115,28 @@ estimate:  ## Estimate batch cost before running (usage: make estimate IN=./pdfs
 		echo "Usage: make estimate IN=./pdfs"; \
 		exit 1; \
 	fi
-	@$(PYTHON) estimate_batch_cost.py --input "$(IN)"
+	@$(PYTHON) utils/estimate_batch_cost.py --input "$(IN)"
 
 cost-check:  ## Check cost and token usage for a completed batch (usage: make cost-check BATCH=msgbatch_xxx)
 	@if [ -z "$(BATCH)" ]; then \
 		echo "Usage: make cost-check BATCH=msgbatch_xxx"; \
 		exit 1; \
 	fi
-	@$(PYTHON) check_batch_cost.py "$(BATCH)"
+	@$(PYTHON) utils/check_batch_cost.py "$(BATCH)"
 
 consolidate:  ## Consolidate themes (usage: make consolidate DIR=./transcriptions)
 	@if [ -z "$(DIR)" ]; then \
 		echo "Usage: make consolidate DIR=./transcriptions"; \
 		exit 1; \
 	fi
-	@$(PYTHON) consolidate_themes.py --input "$(DIR)" --report theme_analysis.md
+	@$(PYTHON) utils/consolidate_themes.py --input "$(DIR)" --report theme_analysis.md
 
 consolidate-apply:  ## Consolidate and apply themes to files
 	@if [ -z "$(DIR)" ]; then \
 		echo "Usage: make consolidate-apply DIR=./transcriptions"; \
 		exit 1; \
 	fi
-	@$(PYTHON) consolidate_themes.py --input "$(DIR)" --report theme_analysis.md --apply
+	@$(PYTHON) utils/consolidate_themes.py --input "$(DIR)" --report theme_analysis.md --apply
 
 clean:  ## Remove virtual environment and cache files
 	@echo "Cleaning up..."
