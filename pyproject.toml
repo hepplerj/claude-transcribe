@@ -24,6 +24,11 @@ local = [
     "openai>=1.0.0",
     "PyMuPDF>=1.24.0",
 ]
+vision = [
+    "PyMuPDF>=1.24.0",
+    "pyobjc-framework-Vision>=10.0",
+    "pyobjc-framework-Quartz>=10.0",
+]
 gemini = [
     "google-genai>=1.0.0",
     "pyyaml>=6.0",

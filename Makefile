@@ -2,10 +2,15 @@
 
 PYTHON := .venv/bin/python
 
+# Load .env if present
+-include .env
+export
+
 .PHONY: help install setup test test-single clean \
         process process-haiku process-opus \
         install-gemini test-gemini process-gemini process-gemini-pro \
         install-local list-models process-local \
+        install-vision test-vision process-vision \
         estimate cost-check consolidate consolidate-apply
 
 help:  ## Show this help message
@@ -28,28 +33,28 @@ test-single:  ## Test single PDF (usage: make test-single PDF=path/to/file.pdf)
 		echo "Usage: make test-single PDF=path/to/file.pdf"; \
 		exit 1; \
 	fi
-	@$(PYTHON) test_single_claude.py $(PDF)
+	@$(PYTHON) test_single_claude.py "$(PDF)"
 
 process:  ## Process PDFs (usage: make process IN=./pdfs OUT=./transcriptions)
 	@if [ -z "$(IN)" ] || [ -z "$(OUT)" ]; then \
 		echo "Usage: make process IN=./pdfs OUT=./transcriptions"; \
 		exit 1; \
 	fi
-	@$(PYTHON) batch_pdf_processor_claude.py --input $(IN) --output $(OUT)
+	@$(PYTHON) batch_pdf_processor_claude.py --input "$(IN)" --output "$(OUT)"
 
 process-haiku:  ## Process with Haiku (fastest/cheapest)
 	@if [ -z "$(IN)" ] || [ -z "$(OUT)" ]; then \
 		echo "Usage: make process-haiku IN=./pdfs OUT=./transcriptions"; \
 		exit 1; \
 	fi
-	@$(PYTHON) batch_pdf_processor_claude.py --input $(IN) --output $(OUT) --model claude-haiku-4-5-20251001
+	@$(PYTHON) batch_pdf_processor_claude.py --input "$(IN)" --output "$(OUT)" --model claude-haiku-4-5-20251001
 
 process-opus:  ## Process with Opus (most accurate)
 	@if [ -z "$(IN)" ] || [ -z "$(OUT)" ]; then \
 		echo "Usage: make process-opus IN=./pdfs OUT=./transcriptions"; \
 		exit 1; \
 	fi
-	@$(PYTHON) batch_pdf_processor_claude.py --input $(IN) --output $(OUT) --model claude-opus-4-6
+	@$(PYTHON) batch_pdf_processor_claude.py --input "$(IN)" --output "$(OUT)" --model claude-opus-4-6
 
 install-gemini:  ## Install Gemini API dependencies
 	@uv pip install -e ".[gemini]"
@@ -59,21 +64,21 @@ test-gemini:  ## Test single PDF with Gemini (usage: make test-gemini PDF=path/t
 		echo "Usage: make test-gemini PDF=path/to/file.pdf"; \
 		exit 1; \
 	fi
-	@$(PYTHON) test_single_gemini.py $(PDF)
+	@$(PYTHON) test_single_gemini.py "$(PDF)"
 
 process-gemini:  ## Process PDFs with Gemini Flash free tier (usage: make process-gemini IN=./pdfs OUT=./transcriptions)
 	@if [ -z "$(IN)" ] || [ -z "$(OUT)" ]; then \
 		echo "Usage: make process-gemini IN=./pdfs OUT=./transcriptions"; \
 		exit 1; \
 	fi
-	@$(PYTHON) batch_pdf_processor_gemini.py --input $(IN) --output $(OUT)
+	@$(PYTHON) batch_pdf_processor_gemini.py --input "$(IN)" --output "$(OUT)"
 
 process-gemini-pro:  ## Process PDFs with Gemini 1.5 Pro (most accurate)
 	@if [ -z "$(IN)" ] || [ -z "$(OUT)" ]; then \
 		echo "Usage: make process-gemini-pro IN=./pdfs OUT=./transcriptions"; \
 		exit 1; \
 	fi
-	@$(PYTHON) batch_pdf_processor_gemini.py --input $(IN) --output $(OUT) --model gemini-1.5-pro --delay 0
+	@$(PYTHON) batch_pdf_processor_gemini.py --input "$(IN)" --output "$(OUT)" --model gemini-1.5-pro --delay 0
 
 install-local:  ## Install local model dependencies (PyMuPDF + openai)
 	@uv pip install -e ".[local]"
@@ -86,35 +91,52 @@ process-local:  ## Process with local LlamaBarn model (usage: make process-local
 		echo "Usage: make process-local MODEL=Qwen3-VL-2B IN=./pdfs OUT=./transcriptions"; \
 		exit 1; \
 	fi
-	@$(PYTHON) batch_pdf_processor_local.py --input $(IN) --output $(OUT) --model $(MODEL)
+	@$(PYTHON) batch_pdf_processor_local.py --input "$(IN)" --output "$(OUT)" --model "$(MODEL)"
+
+install-vision:  ## Install Vision OCR dependencies (macOS only: PyMuPDF + pyobjc)
+	@uv pip install -e ".[vision]"
+
+test-vision:  ## Test single PDF with Vision OCR (usage: make test-vision PDF=path/to/file.pdf)
+	@if [ -z "$(PDF)" ]; then \
+		echo "Usage: make test-vision PDF=path/to/file.pdf"; \
+		exit 1; \
+	fi
+	@$(PYTHON) test_single_vision.py "$(PDF)"
+
+process-vision:  ## Process PDFs with Vision OCR + Claude text API (usage: make process-vision IN=./pdfs OUT=./transcriptions)
+	@if [ -z "$(IN)" ] || [ -z "$(OUT)" ]; then \
+		echo "Usage: make process-vision IN=./pdfs OUT=./transcriptions"; \
+		exit 1; \
+	fi
+	@$(PYTHON) batch_pdf_processor_vision.py --input "$(IN)" --output "$(OUT)"
 
 estimate:  ## Estimate batch cost before running (usage: make estimate IN=./pdfs)
 	@if [ -z "$(IN)" ]; then \
 		echo "Usage: make estimate IN=./pdfs"; \
 		exit 1; \
 	fi
-	@$(PYTHON) estimate_batch_cost.py --input $(IN)
+	@$(PYTHON) estimate_batch_cost.py --input "$(IN)"
 
 cost-check:  ## Check cost and token usage for a completed batch (usage: make cost-check BATCH=msgbatch_xxx)
 	@if [ -z "$(BATCH)" ]; then \
 		echo "Usage: make cost-check BATCH=msgbatch_xxx"; \
 		exit 1; \
 	fi
-	@$(PYTHON) check_batch_cost.py $(BATCH)
+	@$(PYTHON) check_batch_cost.py "$(BATCH)"
 
 consolidate:  ## Consolidate themes (usage: make consolidate DIR=./transcriptions)
 	@if [ -z "$(DIR)" ]; then \
 		echo "Usage: make consolidate DIR=./transcriptions"; \
 		exit 1; \
 	fi
-	@$(PYTHON) consolidate_themes.py --input $(DIR) --report theme_analysis.md
+	@$(PYTHON) consolidate_themes.py --input "$(DIR)" --report theme_analysis.md
 
 consolidate-apply:  ## Consolidate and apply themes to files
 	@if [ -z "$(DIR)" ]; then \
 		echo "Usage: make consolidate-apply DIR=./transcriptions"; \
 		exit 1; \
 	fi
-	@$(PYTHON) consolidate_themes.py --input $(DIR) --report theme_analysis.md --apply
+	@$(PYTHON) consolidate_themes.py --input "$(DIR)" --report theme_analysis.md --apply
 
 clean:  ## Remove virtual environment and cache files
 	@echo "Cleaning up..."
