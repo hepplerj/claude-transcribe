@@ -570,6 +570,94 @@ Return the completed frontmatter block and corrected transcription, following th
         print(f"Results: {succeeded} succeeded, {failed} failed")
         print(f"{'=' * 50}")
 
+    def prepare_batch_from_ocr_files(
+        self, ocr_dir: Path
+    ) -> Tuple[List[Dict], Dict[str, str]]:
+        """
+        Read previously-generated OCR markdown files and prepare batch API requests.
+
+        This allows a two-stage workflow: run --skip-claude first (e.g. on a research
+        trip), then later send the OCR text to Claude for correction and entity
+        extraction without re-running OCR.
+
+        Args:
+            ocr_dir: Directory containing .md files produced by --skip-claude
+
+        Returns:
+            Tuple of (request list for batch API, custom_id -> doc_type mapping)
+        """
+        md_files = sorted(ocr_dir.glob("*.md"))
+        if not md_files:
+            print(f"No .md files found in {ocr_dir}")
+            return [], {}
+
+        requests = []
+        doc_type_map: Dict[str, str] = {}
+
+        for md_path in md_files:
+            custom_id = md_path.stem
+            print(f"  Reading: {md_path.name}", end="", flush=True)
+
+            try:
+                text = md_path.read_text(encoding="utf-8")
+
+                # Extract source from frontmatter
+                source = ""
+                if text.startswith("---"):
+                    parts = text.split("---", 2)
+                    if len(parts) >= 3:
+                        try:
+                            fm = yaml.safe_load(parts[1])
+                            source = fm.get("source", "") if fm else ""
+                        except yaml.YAMLError:
+                            pass
+
+                # Extract transcription text after ## Transcription
+                marker = "## Transcription"
+                if marker in text:
+                    ocr_text = text.split(marker, 1)[1].strip()
+                else:
+                    print(" ✗ no ## Transcription section found")
+                    continue
+
+                if not ocr_text:
+                    print(" ⚠ empty transcription, skipping")
+                    continue
+
+                doc_type = "document"
+                doc_type_map[custom_id] = doc_type
+
+                request = {
+                    "custom_id": custom_id,
+                    "params": {
+                        "model": self.model,
+                        "max_tokens": 8192,
+                        "temperature": 0.1,
+                        "system": self.system_prompt,
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": self.create_correction_prompt(
+                                            ocr_text, source, doc_type
+                                        ),
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                }
+
+                requests.append(request)
+                print(" ✓")
+
+            except Exception as e:
+                print(f" ✗ {e}")
+
+        return requests, doc_type_map
+
     def write_ocr_documents(
         self,
         pdf_files: List[Path],
@@ -655,6 +743,8 @@ Examples:
   %(prog)s --input ./pdfs --output ./transcriptions
   %(prog)s -i ./archive -o ./notes --model claude-haiku-4-5-20251001
   %(prog)s -i ./pdfs -o ./out --dpi 300 --confidence-threshold 0.6
+  %(prog)s -i ./pdfs -o ./ocr-only --skip-claude
+  %(prog)s --from-ocr ./ocr-only -o ./corrected    # send prior OCR to Claude
 
 macOS only — requires Apple Vision framework.
 Install dependencies: uv pip install -e '.[vision]'
@@ -662,7 +752,7 @@ Install dependencies: uv pip install -e '.[vision]'
     )
 
     parser.add_argument(
-        "-i", "--input", type=Path, required=True, help="Input directory containing PDF files"
+        "-i", "--input", type=Path, help="Input directory containing PDF files"
     )
     parser.add_argument(
         "-o", "--output", type=Path, required=True, help="Output directory for markdown files"
@@ -702,16 +792,101 @@ Install dependencies: uv pip install -e '.[vision]'
         action="store_true",
         help="Skip Claude correction; write raw OCR text directly to output files (no API key needed)",
     )
+    parser.add_argument(
+        "--from-ocr",
+        type=Path,
+        help="Read existing OCR markdown files (from a prior --skip-claude run) and send to Claude for "
+        "correction/entity extraction. Skips PDF rasterization and OCR entirely.",
+    )
 
     args = parser.parse_args()
+
+    if args.skip_claude and args.from_ocr:
+        parser.error("--skip-claude and --from-ocr cannot be used together")
 
     api_key = args.api_key or os.environ.get("ANTHROPIC_API_KEY")
     if not api_key and not args.skip_claude:
         parser.error("API key required via --api-key or ANTHROPIC_API_KEY environment variable")
 
-    if not args.input.exists():
-        parser.error(f"Input directory does not exist: {args.input}")
+    if args.from_ocr:
+        if not args.from_ocr.exists():
+            parser.error(f"OCR input directory does not exist: {args.from_ocr}")
+    else:
+        if not args.input:
+            parser.error("--input is required (unless using --from-ocr)")
+        if not args.input.exists():
+            parser.error(f"Input directory does not exist: {args.input}")
 
+    # --from-ocr mode: read existing OCR markdown files and send to Claude
+    if args.from_ocr:
+        md_files = sorted(args.from_ocr.glob("*.md"))
+        if not md_files:
+            print(f"No .md files found in {args.from_ocr}")
+            return
+
+        print("=" * 60)
+        print("Historical Document Batch Processor - OCR Correction Mode")
+        print("=" * 60)
+        print(f"\nFound {len(md_files)} OCR markdown files in {args.from_ocr}")
+        print(f"Model:  {args.model}")
+        print(f"Output: {args.output}")
+
+        model_costs = {
+            "claude-opus-4-6":           ("$7.50", "$37.50"),
+            "claude-sonnet-4-6":         ("$1.50", "$7.50"),
+            "claude-haiku-4-5-20251001": ("$0.50", "$2.50"),
+        }
+        input_cost, output_cost = model_costs.get(args.model, ("$?", "$?"))
+        print(f"\nBatch pricing (50% off, text input):")
+        print(f"  Input:  {input_cost}/MTok")
+        print(f"  Output: {output_cost}/MTok")
+        print()
+
+        processor = VisionOCRProcessor(api_key, args.model, args.confidence_threshold, args.dpi)
+
+        print("Reading OCR files and preparing batch requests...")
+        requests, doc_type_map = processor.prepare_batch_from_ocr_files(args.from_ocr)
+
+        if not requests:
+            print("No valid requests prepared. Exiting.")
+            return
+
+        print(f"\n✓ Prepared {len(requests)} requests")
+
+        # Cost estimate
+        total_chars = sum(
+            len(req["params"]["messages"][0]["content"][0]["text"]) for req in requests
+        )
+        approx_input_tokens = total_chars // 4
+        approx_output_tokens = 2000 * len(requests)
+        input_mtok = approx_input_tokens / 1_000_000
+        output_mtok = approx_output_tokens / 1_000_000
+
+        model_rates = {
+            "claude-opus-4-6":           (7.50, 37.50),
+            "claude-sonnet-4-6":         (1.50, 7.50),
+            "claude-haiku-4-5-20251001": (0.50, 2.50),
+        }
+        if args.model in model_rates:
+            in_rate, out_rate = model_rates[args.model]
+            estimated_cost = (input_mtok * in_rate) + (output_mtok * out_rate)
+            print(f"Estimated batch cost: ~${estimated_cost:.2f}")
+            print(f"  (~{approx_input_tokens:,} input tokens from OCR text)\n")
+
+        batch_id = processor.submit_batch_job(requests)
+        batch = processor.wait_for_batch_completion(batch_id, args.check_interval)
+
+        print("\nRetrieving results...")
+        results = processor.get_batch_results(batch_id)
+
+        processor.process_batch_results(results, args.output, doc_type_map)
+
+        print(f"\n✓ Complete! Output saved to: {args.output}")
+        print(f"\nBatch ID: {batch_id}")
+        print(f"Results available until: {batch.expires_at}")
+        return
+
+    # Standard paths: --skip-claude or full OCR + Claude
     pdf_files = list(args.input.rglob("*.pdf"))
     if not pdf_files:
         print(f"No PDF files found in {args.input}")
