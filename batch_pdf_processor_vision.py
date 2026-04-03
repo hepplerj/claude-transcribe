@@ -571,7 +571,7 @@ Return the completed frontmatter block and corrected transcription, following th
         print(f"{'=' * 50}")
 
     def prepare_batch_from_ocr_files(
-        self, ocr_dir: Path
+        self, md_files: List[Path]
     ) -> Tuple[List[Dict], Dict[str, str]]:
         """
         Read previously-generated OCR markdown files and prepare batch API requests.
@@ -581,14 +581,13 @@ Return the completed frontmatter block and corrected transcription, following th
         extraction without re-running OCR.
 
         Args:
-            ocr_dir: Directory containing .md files produced by --skip-claude
+            md_files: List of .md files produced by --skip-claude (pre-filtered)
 
         Returns:
             Tuple of (request list for batch API, custom_id -> doc_type mapping)
         """
-        md_files = sorted(ocr_dir.glob("*.md"))
         if not md_files:
-            print(f"No .md files found in {ocr_dir}")
+            print("No OCR markdown files to process.")
             return [], {}
 
         requests = []
@@ -799,6 +798,14 @@ Install dependencies: uv pip install -e '.[vision]'
         "correction/entity extraction. Skips PDF rasterization and OCR entirely.",
     )
 
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Process at most N unprocessed files (0 = no limit; useful for test runs)",
+    )
+
     args = parser.parse_args()
 
     if args.skip_claude and args.from_ocr:
@@ -824,10 +831,26 @@ Install dependencies: uv pip install -e '.[vision]'
             print(f"No .md files found in {args.from_ocr}")
             return
 
+        # Resume: skip files that already have a corrected output .md
+        already_done = sum(1 for f in md_files if (args.output / f.name).exists())
+        md_files = [f for f in md_files if not (args.output / f.name).exists()]
+
+        if args.limit > 0:
+            md_files = md_files[:args.limit]
+
+        if not md_files:
+            print("All OCR files already corrected. Nothing to do.")
+            return
+
         print("=" * 60)
         print("Historical Document Batch Processor - OCR Correction Mode")
         print("=" * 60)
-        print(f"\nFound {len(md_files)} OCR markdown files in {args.from_ocr}")
+        print(f"\nFound {len(md_files) + already_done} OCR markdown files in {args.from_ocr}")
+        if already_done:
+            print(f"  {already_done} already corrected (skipped)")
+        print(f"  Submitting {len(md_files)}")
+        if args.limit > 0:
+            print(f"  (--limit {args.limit} applied)")
         print(f"Model:  {args.model}")
         print(f"Output: {args.output}")
 
@@ -845,7 +868,7 @@ Install dependencies: uv pip install -e '.[vision]'
         processor = VisionOCRProcessor(api_key, args.model, args.confidence_threshold, args.dpi)
 
         print("Reading OCR files and preparing batch requests...")
-        requests, doc_type_map = processor.prepare_batch_from_ocr_files(args.from_ocr)
+        requests, doc_type_map = processor.prepare_batch_from_ocr_files(md_files)
 
         if not requests:
             print("No valid requests prepared. Exiting.")
@@ -887,15 +910,37 @@ Install dependencies: uv pip install -e '.[vision]'
         return
 
     # Standard paths: --skip-claude or full OCR + Claude
-    pdf_files = list(args.input.rglob("*.pdf"))
+    pdf_files = sorted(args.input.rglob("*.pdf"))
     if not pdf_files:
         print(f"No PDF files found in {args.input}")
+        return
+
+    # Resume: skip PDFs that already have an output .md file
+    def _custom_id(p: Path) -> str:
+        return (
+            str(p.relative_to(args.input))
+            .replace("/", "_").replace("\\", "_").replace(".pdf", "")
+        )
+
+    already_done = sum(1 for p in pdf_files if (args.output / f"{_custom_id(p)}.md").exists())
+    pdf_files = [p for p in pdf_files if not (args.output / f"{_custom_id(p)}.md").exists()]
+
+    if args.limit > 0:
+        pdf_files = pdf_files[:args.limit]
+
+    if not pdf_files:
+        print("All PDFs already processed. Nothing to do.")
         return
 
     print("=" * 60)
     print("Historical Document Batch Processor - Vision OCR + Claude")
     print("=" * 60)
-    print(f"\nFound {len(pdf_files)} PDF files")
+    print(f"\nFound {len(pdf_files) + already_done} PDF files total")
+    if already_done:
+        print(f"  {already_done} already processed (skipped)")
+    print(f"  Processing {len(pdf_files)}")
+    if args.limit > 0:
+        print(f"  (--limit {args.limit} applied)")
     print(f"Model:                {args.model}")
     print(f"Rasterization DPI:    {args.dpi}")
     print(f"Confidence threshold: {args.confidence_threshold}")

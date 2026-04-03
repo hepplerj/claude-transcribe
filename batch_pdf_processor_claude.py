@@ -581,6 +581,14 @@ Privacy & Cost:
         help='Seconds between batch status checks (default: 60)'
     )
 
+    parser.add_argument(
+        '--limit',
+        type=int,
+        default=0,
+        metavar='N',
+        help='Process at most N unprocessed PDFs (0 = no limit; useful for test runs)'
+    )
+
     args = parser.parse_args()
 
     # Get API key
@@ -594,16 +602,39 @@ Privacy & Cost:
         parser.error(f"Input directory does not exist: {args.input}")
 
     # Find PDF files recursively
-    pdf_files = list(args.input.rglob("*.pdf"))
+    pdf_files = sorted(args.input.rglob("*.pdf"))
     if not pdf_files:
         print(f"No PDF files found in {args.input}")
+        return
+
+    # Resume: skip PDFs that already have an output .md file
+    def _custom_id(p: Path) -> str:
+        return (
+            str(p.relative_to(args.input))
+            .replace('/', '_').replace('\\', '_').replace('.pdf', '')
+        )
+
+    already_done = sum(1 for p in pdf_files if (args.output / f"{_custom_id(p)}.md").exists())
+    pdf_files = [p for p in pdf_files if not (args.output / f"{_custom_id(p)}.md").exists()]
+
+    # Apply limit to unprocessed files
+    if args.limit > 0:
+        pdf_files = pdf_files[:args.limit]
+
+    if not pdf_files:
+        print("All PDFs already processed. Nothing to do.")
         return
 
     # Display info
     print("=" * 60)
     print("Historical Document Batch Processor - Claude API")
     print("=" * 60)
-    print(f"\nFound {len(pdf_files)} PDF files")
+    print(f"\nFound {len(pdf_files) + already_done} PDF files total")
+    if already_done:
+        print(f"  {already_done} already processed (skipped)")
+    print(f"  Submitting {len(pdf_files)}")
+    if args.limit > 0:
+        print(f"  (--limit {args.limit} applied)")
     print(f"Model: {args.model}")
     print(f"Output: {args.output}")
 

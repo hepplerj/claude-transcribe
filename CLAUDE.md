@@ -16,6 +16,9 @@ make process IN=./pdfs OUT=./transcriptions                       # Sonnet (defa
 make process-haiku IN=./pdfs OUT=./transcriptions                 # Fastest/cheapest
 make process-opus  IN=./pdfs OUT=./transcriptions                 # Most accurate
 
+# Limit to N unprocessed docs; already-processed files are always skipped automatically
+uv run python batch_pdf_processor_claude.py -i ./pdfs -o ./transcriptions --limit 5
+
 # Test a single document before batching
 make test-single PDF=./sample.pdf
 
